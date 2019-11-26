@@ -7,6 +7,7 @@ let api = express.Router();
 
 api.get('/home', UserController.home); //Se creará un servicio en /home
 api.get('/prueba', UserController.prueba); //Se creará un servicio en /prueba
-
+api.post('/registerUser', UserController.registerUser);
+api.post('/loginUser', UserController.loginUser);
 
 module.exports = api;

@@ -6,6 +6,9 @@
 
 const mongoose = require('mongoose');
 
+//Se importa la librería encargada de realizar la validación
+//para campos únicos.
+const uniqueValidator = require('mongoose-unique-validator');
 
 //Declaración del esquema usando la librería mongoose.
 let Schema = mongoose.Schema;
@@ -31,7 +34,8 @@ let UserSchema = new Schema({
     },
     nick: {
         type: String,
-        required: [true, "EL NICKNAME ES OBLIGATORIO"]
+        required: [true, "EL NICKNAME ES OBLIGATORIO"],
+        unique: true
     },
     email: {
         type: String,
@@ -51,10 +55,24 @@ let UserSchema = new Schema({
     },
     image: {
         type: String,
+        default: null,
         required: false
     }
 
 });
+
+
+//Eliminar un atributo de la petición
+UserSchema.methods.toJSON = function(){
+    let user = this;
+    let userObject = user.toObject();
+    delete userObject.password;
+
+    return userObject;
+}
+//Añadir el plugin unique-validator para sólo permitir un único registro
+//con los valores agregados.
+UserSchema.plugin(uniqueValidator, {message: '{PATH} debe ser único'});
 
 //Se indica el nombre de la entidad y además el esquema que contiene dicha entidad, en este caso UserSchema.
 //Finalmente en la colección de la base de datos la entidad especificada acá como 'User' quedará pluralizada  y
