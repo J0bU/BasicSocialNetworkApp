@@ -5,11 +5,19 @@ const express = require('express');
 const app = express();
 
 //Se importa el modelo User creado.
-let User = require('../models/user');
+const User = require('../models/user');
+
+//Libería encargada de realizar el sign del token.
+const jwt = require('../services/jwt');
 
 //Librería para cifrar la password
-let bcrypt = require('bcrypt');
+const bcrypt = require('bcrypt');
 
+//Librería que ayudará a decidir los campos a actualizar.
+const underscore = require('underscore');
+
+//Librería encargadad de realizar la paginación de mongoose.
+const mongoosePagination = require('mongoose-pagination');
 //Creación ruta GET -> PRÓXIMA A ELIMINAR.
 function home(req, res) {
     res.json({
@@ -26,67 +34,67 @@ function prueba(req, res) {
 
 //Método encargado de registrar un nuevo usuario.
 
-function registerUser(req, res){
-	
-	//Parámetros que viene desde la petición
-	let body = req.body;
-	console.log(body);
+function registerUser(req, res) {
 
-	//Validación de parámetros
-	if(!(body.name && body.surname && body.nick && body.email 
-		&& body.password)){
+    //Parámetros que viene desde la petición
+    let body = req.body;
+    console.log(body);
 
-		return res.status(412).json({
-			ok: false,
-			message: "Todos los campos deben ser necesarios"
-		});
-	}
+    //Validación de parámetros
+    if (!(body.name && body.surname && body.nick && body.email &&
+            body.password)) {
 
-	//Instancia modelo User: creación nuevo usuario.
-
-	let user = new User({
-		name: body.name,
-		surname: body.surname,
-		nick: body.nick,
-		email: body.email,
-		password: bcrypt.hashSync(body.password, 10),
-		role: body.role
-	});
-
-	// Guardar nuevo usuario en la base de datos.
-	user.save( (error, usuarioDB) => {
-  
-        if(error) {
-            return res.status(400).json({
+        return res.status(412).json({
             ok: false,
-            error: error
-         });
-      }
+            message: "Todos los campos deben ser necesarios"
+        });
+    }
 
-      	if(usuarioDB){
-      		 res.status(200).json({
-          		ok: true,
-         		user: usuarioDB
-     		 });	
-      	}else{
-      		res.status(404).json({
-      			ok: false,
-      			message: 'No se logró crear el usuario'
-      		});
-      	}
-        
-	});
+    //Instancia modelo User: creación nuevo usuario.
+
+    let user = new User({
+        name: body.name,
+        surname: body.surname,
+        nick: body.nick,
+        email: body.email,
+        password: bcrypt.hashSync(body.password, 10),
+        role: body.role
+    });
+
+    // Guardar nuevo usuario en la base de datos.
+    user.save((error, usuarioDB) => {
+
+        if (error) {
+            return res.status(400).json({
+                ok: false,
+                error: error
+            });
+        }
+
+        if (usuarioDB) {
+            res.status(200).json({
+                ok: true,
+                user: usuarioDB
+            });
+        } else {
+            res.status(404).json({
+                ok: false,
+                message: 'No se logró crear el usuario'
+            });
+        }
+
+    });
 };
 
 //Método encargado del login.
 function loginUser(req, res) {
 
-	//Se obtienen las credenciales
-	let body = req.body;
+    //Se obtienen las credenciales
+    let body = req.body;
 
-	User.findOne({email: body.email}, (error, result) => {
+    User.findOne({ email: body.email }, (error, user) => {
 
-		if (error) {
+        if (error) {
             return res.status(500).json({
                 ok: false,
                 error: error
@@ -94,38 +102,156 @@ function loginUser(req, res) {
         }
 
         //No existe el correo especificado.
-        if (!result) {
-            return res.status(400).json({ 
+        if (!user) {
+            return res.status(404).json({
                 ok: false,
                 message: "(Usuario) o contraseña incorrectos"
             });
         }
 
         //No coinciden la password ingresada respecto al usuario encontrado.
-        if (!bcrypt.compareSync(body.password, result.password)) { 
-            return res.status(400).json({ 
+        if (!bcrypt.compareSync(body.password, user.password)) {
+            return res.status(400).json({
                 ok: false,
                 message: "Usuario o (contraseña) incorrectos"
             });
         }
 
+        //Usando tokens para la autenticación.
         return res.json({
-        	ok: true,
-        	user: {
-        		name: result.name,
-        		surname: result.surname,
-        		nick: result.nick,
-        		email: result.email,
-        		role: result.role
-        	}
+            ok: true,
+            user: user,
+            token: jwt.createToken(user)
         });
 
-	});
+    });
 };
+
+//Método encargado de conseguir los datos de un usuario
+function getUser(req, res) {
+
+    let id = req.params.id;
+
+    User.findById(id, (error, user) => {
+
+        if (error) {
+            return res.status(500).json({
+                ok: false,
+                error: error
+            });
+        }
+
+        //No existe el correo especificado.
+        if (!user) {
+            return res.status(404).json({
+                ok: false,
+                message: "No existe un usuario con el id especificado"
+            });
+        }
+
+        //Usando tokens para la autenticación.
+        return res.json({
+            ok: true,
+            user: user,
+        });
+
+
+
+    });
+}
+
+//Método encargado de devolver un listado de usuarios paginados.
+
+function getUsers(req, res) {
+
+    //Obtenemos el id del usuario que traerá el token.
+    let identityUserId = req.userToken._id;
+
+    //let page = 1 sólo se usa en caso de que el usuario no indique la página.
+    let page = 1;
+    if (req.params.page) {
+        page = req.params.page;
+    }
+
+    let itemsPerPage = 2;
+    User.find().sort('_id').paginate(page, itemsPerPage, (error, users, total) => {
+
+        if (error) {
+            return res.status(500).json({
+                ok: false,
+                error: error
+            });
+        }
+
+        if (!users) {
+            return res.status(404).json({
+                ok: false,
+                message: "No hay usuarios disponibles"
+            });
+        }
+
+        res.json({
+            ok: true,
+            users,
+            total,
+            pages: Math.ceil(total / itemsPerPage)
+        });
+
+    });
+
+}
+//Método encargado de actualizar los datos de un usuario.
+
+function updateUser(req, res) {
+
+
+    //Obtenemos el id del usuario que traerá el token.
+    let identityUserId = req.userToken._id;
+
+    let idUser = req.params.id;
+
+    if (identityUserId != idUser) {
+        return res.status(403).json({
+            ok: false,
+            message: 'No tiene permisos para actualizar este usuario'
+        });
+    }
+
+    //Decidir los campos a actualizar del usuario.
+    let body = underscore.pick(req.body, ["name", "image", "role", "email", "nick"]);
+
+    User.findByIdAndUpdate(idUser, body, { new: true, runValidators: true, context: 'query' }, (error, userUpdate) => {
+
+        if (error) {
+            return res.status(500).json({
+                ok: false,
+                error: error
+            });
+        }
+
+        if (!userUpdate) {
+            return res.status(404).json({
+                ok: false,
+                message: 'No se actualizó ningún usuario'
+            });
+        }
+
+        res.json({
+            ok: true,
+            user: userUpdate
+        });
+
+    });
+};
+
+
 
 module.exports = {
     home,
     prueba,
     registerUser,
-    loginUser
+    loginUser,
+    getUser,
+    getUsers,
+    updateUser
 }
