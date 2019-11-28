@@ -280,10 +280,17 @@ function uploadImage(req, res) {
     //Por último se obtiene la extensión de la imagen subida.
     let extImge = fileName[fileName.length - 1];
 
-
+    //Se pregunta si el id que viene desde el token es igual al proporcionado.
     if (identityUserId != idUser) {
-        return removeFilesUpload(res, filePath, 'No tiene permisos para realizar esta acción', 403)
-    } else if (extensionesValidas.indexOf(extImge) < 0) {
+        let eliminar = fs.unlink(filePath, (error) => {
+            if (error) { return res.status(400).json({ ok: false, message: 'no fue posible eliminar el archivo', error }) }
+            res.status(403).json({ ok: false, message: 'No tiene permisos para realizar esta acción' });
+        });
+
+        return eliminar;
+        //se hace la validación de las extensiones.
+    }
+    if (extensionesValidas.indexOf(extImge) < 0) {
         return fs.unlink(filePath, (error) => {
             res.status(400).json({
                 ok: false,
@@ -295,56 +302,59 @@ function uploadImage(req, res) {
 
     }
 
+    //Se busca el usuario para obtener la imagen que ya tiene asignada y borrarla antes 
+    //de actualizar la próxima.
     User.findById(idUser, (error, userGet) => {
 
         if (error) return res.status(500).json({ ok: false, error: error });
         if (!userGet) return res.status(404).json({ ok: false, message: 'no existe un usuario con este id' });
 
+        //Se obtiene el atributo de imagen que viene desde el usuario.
         var imageUser = userGet.image;
 
+        //Se agrega el path del usuario añadiendo la imagen que tiene en la BD.
         let pathFile = './uploads/users/' + imageUser;
+        console.log('pathImagenBD:', pathFile);
 
         fs.exists(pathFile, (exists) => {
             if (exists) {
                 fs.unlink(pathFile, (error) => {});
             }
         });
-    });
 
-    let actualizaImagen = {
-        image: fileNameNoV
-    }
-
-    User.findByIdAndUpdate(idUser, actualizaImagen, { new: true }, (error, userImageUpdate) => {
-
-        if (error) {
-            return res.status(500).json({
-                ok: false,
-                error: error
-            });
+        let actualizaImagen = {
+            image: fileNameNoV
         }
 
-        if (!userImageUpdate) {
-            return res.status(404).json({
-                ok: false,
-                message: 'No se actualizó ningún usuario'
-            });
-        }
+        User.findByIdAndUpdate(idUser, actualizaImagen, { new: true }, (error, userImageUpdate) => {
 
-        res.json({
-            ok: true,
-            user: userImageUpdate
+            if (error) {
+                return res.status(500).json({
+                    ok: false,
+                    error: error
+                });
+            }
+
+            if (!userImageUpdate) {
+                return res.status(404).json({
+                    ok: false,
+                    message: 'No se actualizó ningún usuario'
+                });
+            }
+
+            res.json({
+                ok: true,
+                user: userImageUpdate
+            });
+
         });
-
     });
+
+
+
 
 };
 
-function removeFilesUpload(res, file_path, message, status) {
-    fs.unlink(file_path, (error) => {
-        return res.status(status).json({ ok: false, message: message });
-    });
-};
 
 //Función encargada de obtener la imágen del usuario ingresado.
 
