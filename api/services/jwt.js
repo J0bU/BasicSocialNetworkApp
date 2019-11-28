@@ -15,8 +15,8 @@ function createToken(user) {
     let token = jwt.sign({
         user,
     }, process.env.SEMILLA, { expiresIn: process.env.CADUCIDAD_TOKEN });
-
     return token;
+
 }
 module.exports = {
     createToken

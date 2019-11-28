@@ -24,12 +24,13 @@ let ensureAuth = (req, res, next) => {
                     message: `Token no válido: ${error.message}`,
                 }
             });
+
+
         }
 
         //En este caso 'userToken' es un objeto que contendrá la
         //información del objeto al cual acabamos de convertir el token.
         req.userToken = decoded.user;
-
 
     });
 

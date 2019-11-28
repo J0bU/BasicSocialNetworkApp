@@ -8,8 +8,14 @@ const {
     loginUser,
     getUser,
     getUsers,
-    updateUser
+    updateUser,
+    uploadImage,
+    getImageFile
 } = require('../controllers/users'); //Se traen las funciones creadas en usuarios.
+
+//Middleware encargado de verificación de imágenes.
+const multipart = require('connect-multiparty');
+const ensureUpload = multipart({ uploadDir: './uploads/users' });
 
 const { ensureAuth } = require('../middlewares/authenticated');
 
@@ -22,5 +28,7 @@ api.post('/loginUser', loginUser);
 api.get('/getUser/:id', ensureAuth, getUser);
 api.get('/getUsers/:page?', ensureAuth, getUsers);
 api.put('/updateUser/:id', ensureAuth, updateUser);
+api.post('/uploadImage/:id', [ensureAuth, ensureUpload], uploadImage);
+api.get('/getImageUser/:imageFile', ensureAuth, getImageFile);
 
 module.exports = api;

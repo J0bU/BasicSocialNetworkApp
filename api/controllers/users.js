@@ -18,6 +18,15 @@ const underscore = require('underscore');
 
 //Librería encargadad de realizar la paginación de mongoose.
 const mongoosePagination = require('mongoose-pagination');
+
+//Librería que nos permite trabajar con ficheros.
+const fs = require('fs');
+
+//Librería que nos permitirá trabajar con rutas de ficheros.
+const path = require('path');
+
+
+
 //Creación ruta GET -> PRÓXIMA A ELIMINAR.
 function home(req, res) {
     res.json({
@@ -92,6 +101,7 @@ function loginUser(req, res) {
     //Se obtienen las credenciales
     let body = req.body;
 
+
     User.findOne({ email: body.email }, (error, user) => {
 
         if (error) {
@@ -116,7 +126,6 @@ function loginUser(req, res) {
                 message: "Usuario o (contraseña) incorrectos"
             });
         }
-
         //Usando tokens para la autenticación.
         return res.json({
             ok: true,
@@ -244,6 +253,117 @@ function updateUser(req, res) {
     });
 };
 
+//Subir archivos de imagen_avatar_usuario
+function uploadImage(req, res) {
+
+    //Obtenemos el id del usuario que traerá el token.
+    let identityUserId = req.userToken._id;
+    let idUser = req.params.id;
+
+    if (!req.files || Object.keys(req.files).length === 0) {
+        return res.status(412).json({
+            ok: false,
+            message: 'No se subió ningún archivo'
+        });
+    }
+    //Se obtiene la ruta en donde se están almacenando las imágenes
+    let filePath = req.files.image.path;
+
+    //Extensiones válidas
+    let extensionesValidas = ['png', 'jpg', 'gif', 'jpeg'];
+    //Se genera un arreglo con las divisiones de cada una de las rutas
+    //además se obtiene el nombre del archivo.
+    let fileName = req.files.image.name.split('.');
+
+    var fileNameNoV = req.files.image.path.split('\\')[2];
+
+    //Por último se obtiene la extensión de la imagen subida.
+    let extImge = fileName[fileName.length - 1];
+
+
+    if (identityUserId != idUser) {
+        return removeFilesUpload(res, filePath, 'No tiene permisos para realizar esta acción', 403)
+    } else if (extensionesValidas.indexOf(extImge) < 0) {
+        return fs.unlink(filePath, (error) => {
+            res.status(400).json({
+                ok: false,
+                error: {
+                    message: 'Las extensiones permitidas son ' + extensionesValidas.join(',')
+                }
+            });
+        });
+
+    }
+
+    User.findById(idUser, (error, userGet) => {
+
+        if (error) return res.status(500).json({ ok: false, error: error });
+        if (!userGet) return res.status(404).json({ ok: false, message: 'no existe un usuario con este id' });
+
+        var imageUser = userGet.image;
+
+        let pathFile = './uploads/users/' + imageUser;
+
+        fs.exists(pathFile, (exists) => {
+            if (exists) {
+                fs.unlink(pathFile, (error) => {});
+            }
+        });
+    });
+
+    let actualizaImagen = {
+        image: fileNameNoV
+    }
+
+    User.findByIdAndUpdate(idUser, actualizaImagen, { new: true }, (error, userImageUpdate) => {
+
+        if (error) {
+            return res.status(500).json({
+                ok: false,
+                error: error
+            });
+        }
+
+        if (!userImageUpdate) {
+            return res.status(404).json({
+                ok: false,
+                message: 'No se actualizó ningún usuario'
+            });
+        }
+
+        res.json({
+            ok: true,
+            user: userImageUpdate
+        });
+
+    });
+
+};
+
+function removeFilesUpload(res, file_path, message, status) {
+    fs.unlink(file_path, (error) => {
+        return res.status(status).json({ ok: false, message: message });
+    });
+};
+
+//Función encargada de obtener la imágen del usuario ingresado.
+
+function getImageFile(req, res) {
+
+    let imageFile = req.params.imageFile;
+    let pathFile = './uploads/users/' + imageFile;
+
+    fs.exists(pathFile, (exists) => {
+        if (exists) {
+            res.sendFile(path.resolve(pathFile));
+        } else {
+            res.status(412).json({
+                ok: false,
+                message: 'No existe la imagen'
+            });
+        }
+    });
+};
 
 
 module.exports = {
@@ -253,5 +373,7 @@ module.exports = {
     loginUser,
     getUser,
     getUsers,
-    updateUser
+    updateUser,
+    uploadImage,
+    getImageFile
 }
