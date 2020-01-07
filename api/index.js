@@ -15,6 +15,7 @@ require('./config/config');
 mongoose.connect('mongodb://localhost:27017/curso_mean_social', {
     useNewUrlParser: true,
     useUnifiedTopology: true,
+    useFindAndModify: false,
     useCreateIndex: true
 }, (error, resp) => {
     if (error) throw error; //Lanazará error si no logra conectarse a la db.
