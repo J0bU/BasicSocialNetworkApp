@@ -1,7 +1,8 @@
-// ---Esta instrucción permitirá usar nuevas características de JavaScript ----
-// además nos permitirá usar ES5, además de usar funciones de flecha y demás.
 'use strict'
-
+/*
+---Esta instrucción permitirá usar nuevas características de JavaScript ----
+además nos permitirá usar ES5, además de usar funciones de flecha y demás.
+*/
 
 //Se trae la configuración realizada en app.js y exportada, por lo que se podrá usar acá.
 const app = require('./app');

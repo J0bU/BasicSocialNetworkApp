@@ -1,4 +1,10 @@
 'use strict'
+
+/*
+	Fichero encargado de llevar toda la configuración de Express,
+	es decir, la configuración del servidor y demás parámetros.
+*/
+
 //Delaración constante express que permitirá trabajar con el servidor local.
 const express = require('express');
 //Declaración constante body-parser que permitirá trabajar con archivos.json y parsearlos para JS.
@@ -18,7 +24,7 @@ app.use(bodyParser.json()); //Información lo convertirá en un tipo JSON.
 
 
 //Sección para cargar rutas desde index.js que contendrá las demás rutas.
-let userRouter = require('./routes/user');
+let userRouter = require('./routes/index.js');
 app.use('/api', userRouter); //'api/home'
 //Por último se trae la creación del Router y finalizará con dos servicios en las rutas
 // localhost:ttt/api/home

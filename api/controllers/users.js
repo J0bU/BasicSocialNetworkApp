@@ -4,9 +4,6 @@
 const express = require('express');
 const app = express();
 
-//Se importa el modelo User creado.
-const User = require('../models/user');
-
 //Libería encargada de realizar el sign del token.
 const jwt = require('../services/jwt');
 
@@ -25,7 +22,11 @@ const fs = require('fs');
 //Librería que nos permitirá trabajar con rutas de ficheros.
 const path = require('path');
 
+//Se importa el modelo User creado.
+const User = require('../models/user');
 
+//Se importa el modelo Follow creado.
+const Follow = require('../models/follow.js');
 
 
 // --------- Método encargado de registrar un nuevo usuario --------
@@ -33,7 +34,6 @@ function registerUser(req, res) {
 
   //Parámetros que viene desde la petición
   let body = req.body;
-  console.log(body);
 
   //Validación de parámetros
   if (!(body.name && body.surname && body.nick && body.email &&
@@ -59,14 +59,8 @@ function registerUser(req, res) {
   // Guardar nuevo usuario en la base de datos.
   user.save((error, usuarioDB) => {
 
-    if (error) {
-        return res.status(500).json({
-          ok: false,
-          statusCode: 500,
-          error: error
-
-        });
-    }
+    if (error) return res.status(500).json({ok: false,statusCode: 500,error: error });
+    
 
     if (usuarioDB) {
         return res.status(200).json({
@@ -154,17 +148,79 @@ function getUser(req, res) {
         });
     }
 
+    //Se revisa la existencia del seguimiento del usuario pasado como
+    //parámetro contra el usuario logueado.
+
+    /*Debido a que es una promesa que está realizada en la función 
+    FollowThisUser con async y await, retornará una promea que
+    se captura con then y then traréra consigo el valor retornado de la 
+    función FollowThisUser.*/
+    followThisUser(req.userToken._id, id).then((value) => {
+      //Usando tokens para la autenticación.
+      return res.json({
+          ok: true,
+          statusCode: 200,
+          user: user,
+          following: value.yoSigo,
+          followed: value.elSigue
+      });
+    }).catch(error => {console.log(error)});
+
+  }); 
+};
+
+/*
+  ----- Creación de una función asíncrona ----
+  1. Creación de la función que contendrá la funcionalidad
+  en este caso followThisUser, a la función se le agregará
+  la palabra reservada async.
+
+  2. Se crea una variable que contendrá el resultado de la ejecución
+  de la función interna, en este caso fue llamada following, por lo que
+  se esperará a obtener el return y se almacenará allí.
+*/
+
+async function followThisUser(identity_user_id, user_id){
+
+  //Se revisa la existencia del seguimiento del usuario pasado como
+  //parámetro contra el usuario logueado.
+
+  //Following: Yo sigo al usuario.
+   var following = await Follow.findOne({user: identity_user_id, followed:user_id})
+  .populate('followed')
+  .exec().then((followsDB ) => {
+  
+    
+    if(!followsDB)
+      return {ok: false,statusCode: 404,message: 'No sigues a este usuario aún'};
+
     //Usando tokens para la autenticación.
-    return res.json({
-        ok: true,
-        statusCode: 200,
-        user: user,
-    });
+    return  followsDB;
 
+  }).catch(error => {if(error) throw new Error({ok: false,statusCode: 500,error: error});})
 
+  //Followed: El usuario me sigue.
+  var followed = await Follow.findOne({user: user_id, followed:identity_user_id})
+  .populate('followed')
+  .exec().then(( followsDB) => {
 
-  });
-}
+    
+    if(!followsDB)
+      return {ok: false,statusCode: 404,message: 'Este usuario no te sigue.'};
+    
+
+    //Usando tokens para la autenticación.
+    return followsDB;
+
+  }).catch(error => {if(error) throw new Error({ok: false,statusCode: 500,error: error});})
+
+  return {
+    yoSigo: following,
+    elSigue: followed
+  }
+  //Este método retornará una promesa.
+   
+};
 
 //-------Método encargado de devolver un listado de usuarios paginados-----
 function getUsers(req, res) {
@@ -197,17 +253,103 @@ function getUsers(req, res) {
         });
     }
 
-    res.json({
-        ok: true,
-        statusCode: 200,
-        users,
-        total,
-        pages: Math.ceil(total / itemsPerPage)
-    });
+    followsUserIds(identityUserId).then((value) => {
+
+      return res.json({
+          ok: true,
+          statusCode: 200,
+          users,
+          users_following: value.following,
+          users_follow_me: value.followed,
+          total,
+          pages: Math.ceil(total / itemsPerPage)
+      });
+
+    }).catch(error => {console.log(error)});
 
   });
 
 }
+
+// -- Creación de función asíncrona getUsers: Usuarios que me siguen y sigo. -----
+let followsUserIds = async (user_id) => {
+
+  let following = await Follow.find({user: user_id}).select({'_id':0,'__v0':0,'user':0})
+  .exec().then((followsDB) => {
+
+
+    let follows_clean = [];
+    followsDB.forEach((follows) => {
+
+        follows_clean.push(follows.followed);
+    });
+
+    if(follows_clean.length === 0)
+      return {ok: false,statusCode: 404,message: 'No sigues a ningún usuario'};
+
+    return follows_clean;
+
+  }).catch(error => {if(error) throw new Error({ok: false,statusCode: 500,error: error});});
+
+   let followed = await Follow.find({followed: user_id}).select({'_id':0,'__v0':0,'followed':0})
+  .exec().then((followsDB) => {
+
+
+    let follows_clean = [];
+    followsDB.forEach((follows) => {
+
+        follows_clean.push(follows.user);
+    });
+
+    if(follows_clean.length === 0)
+      return {ok: false,statusCode: 404,message: 'Aún nadie te sigue'};
+
+    return follows_clean;
+    
+  }).catch(error => {if(error) throw new Error({ok: false,statusCode: 500,error: error});});
+
+  return {
+    following,
+    followed
+  }
+};
+
+//Método encargado de mostrar estadísticas
+//Cuánta gente nos sigue, cuánta gente estamos siguiendo.
+let getCounters = (req, res) => {
+
+  let userId = req.userToken._id;
+  if(req.params.id)
+    userId = req.params.id;
+
+  getCountFollow(userId).then( (value) => {
+    return res.json({ok:true, statusCode: 200,value});
+  }).catch(error => {console.log(error)});
+
+};
+
+//Función asíncrona que soluciona el problema de la función anterior.
+let getCountFollow = async (user_id) => {
+
+  let following = await Follow.countDocuments({user:user_id})
+  .exec().then( count => {
+
+    return count;
+  }).catch(error => {if(error) throw new Error({ok: false,statusCode: 500,error: error});});
+
+  let followed = await Follow.countDocuments({followed:user_id})
+  .exec().then( count => {
+
+    return count;
+  }).catch(error => {if(error) throw new Error({ok: false,statusCode: 500,error: error});});
+ 
+  return {
+    following: following,
+    followed: followed
+  }
+
+
+};
 //------Método encargado de actualizar los datos de un usuario-----
 
 function updateUser(req, res) {
@@ -384,6 +526,7 @@ module.exports = {
     loginUser,
     getUser,
     getUsers,
+    getCounters,
     updateUser,
     uploadImage,
     getImageFile
