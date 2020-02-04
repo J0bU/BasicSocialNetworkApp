@@ -24,9 +24,10 @@ const path = require('path');
 
 //Se importa el modelo User creado.
 const User = require('../models/user');
-
 //Se importa el modelo Follow creado.
 const Follow = require('../models/follow.js');
+//Se importa el modelo Publication creado.
+const Publication = require('../models/publication');
 
 
 // --------- Método encargado de registrar un nuevo usuario --------
@@ -343,6 +344,11 @@ let getCountFollow = async (user_id) => {
     return count;
   }).catch(error => {if(error) throw new Error({ok: false,statusCode: 500,error: error});});
  
+  let publications = await Publication.countDocuments({user: user_id}).exec().then(count => {
+
+    return count;
+  }).catch(error => {if(error) throw new Error({ok: false,statusCode: 500,error: error});});
+  
   return {
     following: following,
     followed: followed
@@ -402,104 +408,69 @@ function uploadImage(req, res) {
   //Obtenemos el id del usuario que traerá el token.
   let identityUserId = req.userToken._id;
   let idUser = req.params.id;
+  
+  if (req.files || Object.keys(req.files).length !== 0) {
+    
+    //Se obtiene la ruta en donde se están almacenando las imágenes
+    let filePath = req.files.image.path;
+    
+    let fileSplit = req.files.image.path.split('\\');
+    
+    //Se genera un arreglo con las divisiones de cada una de las rutas
+    //además se obtiene el nombre del archivo.
+    let fileName = fileSplit[2];
+    
+    let extSplit = fileName.split('\.');
+    
+    let fileExt = extSplit[1];
+    
+    //Extensiones válidas
+    let extensionesValidas = ['png', 'jpg', 'gif', 'jpeg'];
+    
+    if (identityUserId != idUser) {
+     return  removeFilesOfUploads(res,filePath, `No tienes permiso para actualizar los datos del usuario`);
+      //se hace la validación de las extensiones.
+    }
+    
+    if(extensionesValidas.indexOf(fileExt) >= 0){
 
-  if (!req.files || Object.keys(req.files).length === 0) {
-      return res.status(412).json({
-          ok: false,
-          statusCode: 412,
-          message: 'No se subió ningún archivo'
-      });
-  }
-  //Se obtiene la ruta en donde se están almacenando las imágenes
-  let filePath = req.files.image.path;
+        User.findByIdAndUpdate(idUser, {image: fileName}, {new: true}, (error, userUpdate) => {
 
-  //Extensiones válidas
-  let extensionesValidas = ['png', 'jpg', 'gif', 'jpeg'];
-  //Se genera un arreglo con las divisiones de cada una de las rutas
-  //además se obtiene el nombre del archivo.
-  let fileName = req.files.image.name.split('.');
+        if (error) return res.status(500).json({ok: false,statusCode: 500,error: error});
+    
+        if (!userUpdate) return res.status(404).json({ok: false,statusCode: 404,message: 'No se actualizó ningún usuario'});
 
-  var fileNameNoV = req.files.image.path.split('\\')[2];
-
-  //Por último se obtiene la extensión de la imagen subida.
-  let extImge = fileName[fileName.length - 1];
-
-  //Se pregunta si el id que viene desde el token es igual al proporcionado.
-  if (identityUserId != idUser) {
-    let eliminar = fs.unlink(filePath, (error) => {
-        if (error) { return res.status(400).json({ ok: false, message: 'no fue posible eliminar el archivo', error }) }
-        res.status(403).json({ ok: false, message: 'No tiene permisos para realizar esta acción' });
-    });
-
-    return eliminar;
-    //se hace la validación de las extensiones.
-  }
-  if (extensionesValidas.indexOf(extImge) < 0) {
-    return fs.unlink(filePath, (error) => {
-      res.status(400).json({
-        ok: false,
-        error: {
-          message: 'Las extensiones permitidas son ' + extensionesValidas.join(',')
-        }
-      });
-    });
-
-  }
-
-  //Se busca el usuario para obtener la imagen que ya tiene asignada y borrarla antes 
-  //de actualizar la próxima.
-  User.findById(idUser, (error, userGet) => {
-
-    if (error) return res.status(500).json({ ok: false, statusCode: 500, error: error });
-    if (!userGet) return res.status(404).json({ ok: false, statusCode:404, message: 'no existe un usuario con este id' });
-
-    //Se obtiene el atributo de imagen que viene desde el usuario.
-    var imageUser = userGet.image;
-
-    //Se agrega el path del usuario añadiendo la imagen que tiene en la BD.
-    let pathFile = './uploads/users/' + imageUser;
-    console.log('pathImagenBD:', pathFile);
-
-    fs.exists(pathFile, (exists) => {
-      if (exists) {
-          fs.unlink(pathFile, (error) => {});
-      }
-    });
-
-  let actualizaImagen = {
-      image: fileNameNoV
-  }
-
-    User.findByIdAndUpdate(idUser, actualizaImagen, { new: true }, (error, userImageUpdate) => {
-
-      if (error) {
-        return res.status(500).json({
-          ok: false,
-          statusCode: 500,
-          error: error
-        });
-      }
-
-      if (!userImageUpdate) {
-        return res.status(404).json({
-          ok: false,
-          statusCode: 404,
-          message: 'No se actualizó ningún usuario'
-        });
-      }
-
-      res.json({
+        return res.json({
           ok: true,
           statusCode: 200,
-          user: userImageUpdate
+          user: userUpdate
       });
 
-          
     });
-  });
+    }else{
+
+      return removeFilesOfUploads(res,filePath, `Las extensiones permitidas son; ${extensionesValidas.join(',')}`);
+    }
+
+  }else{
+    
+    return res.status(412).json({
+        ok: false,
+        statusCode: 412,
+        message: 'No se subió ningún archivo'
+    });
+  }
+
 };
 
-
+function removeFilesOfUploads(res, file_path, message){
+  fs.unlink(file_path, (error) => {
+    return res.status(200).json({
+      ok: false,
+      message
+    });
+  });
+}
 //-----Función encargada de obtener la imágen del usuario ingresado----
 
 function getImageFile(req, res) {
