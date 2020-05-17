@@ -13,5 +13,6 @@ const app = express();
 app.use(require('./user.js'));
 app.use(require('./follow.js'));
 app.use(require('./publication.js'));
+app.use(require('./message.js'));
 
 module.exports = app;

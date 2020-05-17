@@ -1,5 +1,10 @@
 'use strict'
 
+/*
+  ############ SISTEMA USUARIOS ############
+  Controlador encargado de manejar la lógica de usuarios,
+*/
+
 //Se declaran las constantes express y app para poder ser usadas en la creación de la ruta.
 const express = require('express');
 const app = express();
@@ -351,7 +356,8 @@ let getCountFollow = async (user_id) => {
   
   return {
     following: following,
-    followed: followed
+    followed: followed,
+    publications: publications
   }
 
 
